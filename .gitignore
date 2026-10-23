@@ -1,0 +1,7 @@
+build/
+.venv/
+data/
+third_party/
+results/
+__pycache__/
+SPIEGAZIONE.md
