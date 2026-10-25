@@ -44,6 +44,7 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d calib3
 
 add_library(lynx_vision
   src/frontend.cpp
+  src/map.cpp
   src/odometry.cpp)
 target_link_libraries(lynx_vision PUBLIC lynx_core ${OpenCV_LIBS})
 target_include_directories(lynx_vision SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
