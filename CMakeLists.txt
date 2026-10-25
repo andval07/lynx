@@ -32,6 +32,7 @@ add_library(lynx_core
   src/geometry.cpp
   src/epnp.cpp
   src/pnp.cpp
+  src/ba.cpp
   src/trajectory.cpp
   src/tum.cpp)
 target_include_directories(lynx_core PUBLIC include)
@@ -60,6 +61,7 @@ add_executable(lynx_tests
   tests/test_se3.cpp
   tests/test_geometry.cpp
   tests/test_pnp.cpp
+  tests/test_ba.cpp
   tests/test_trajectory.cpp
   tests/test_e2e.cpp)
 target_link_libraries(lynx_tests PRIVATE lynx_vision GTest::gtest_main)
