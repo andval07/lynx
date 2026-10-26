@@ -46,12 +46,15 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d calib3
 add_library(lynx_vision
   src/frontend.cpp
   src/map.cpp
+  src/vocabulary.cpp
   src/odometry.cpp)
 target_link_libraries(lynx_vision PUBLIC lynx_core ${OpenCV_LIBS})
 target_include_directories(lynx_vision SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})
 
 add_executable(lynx_vo apps/lynx_vo.cpp)
 target_link_libraries(lynx_vo PRIVATE lynx_vision)
+add_executable(lynx_vocab apps/lynx_vocab.cpp)
+target_link_libraries(lynx_vocab PRIVATE lynx_vision)
 
 # The prebuilt Windows OpenCV is one DLL, copy it next to the executables.
 if(WIN32)
@@ -66,6 +69,7 @@ add_executable(lynx_tests
   tests/test_ba.cpp
   tests/test_pose_graph.cpp
   tests/test_trajectory.cpp
+  tests/test_vocabulary.cpp
   tests/test_e2e.cpp)
 target_link_libraries(lynx_tests PRIVATE lynx_vision GTest::gtest_main)
 target_compile_definitions(lynx_tests PRIVATE
@@ -73,6 +77,7 @@ target_compile_definitions(lynx_tests PRIVATE
 include(GoogleTest)
 gtest_discover_tests(lynx_tests DISCOVERY_MODE PRE_TEST)
 
+foreach(exe lynx_vo lynx_vocab lynx_tests)
   if(OPENCV_DLL)
     add_custom_command(TARGET ${exe} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OPENCV_DLL} $<TARGET_FILE_DIR:${exe}>)
