@@ -33,6 +33,7 @@ add_library(lynx_core
   src/epnp.cpp
   src/pnp.cpp
   src/ba.cpp
+  src/pose_graph.cpp
   src/trajectory.cpp
   src/tum.cpp)
 target_include_directories(lynx_core PUBLIC include)
@@ -63,6 +64,7 @@ add_executable(lynx_tests
   tests/test_geometry.cpp
   tests/test_pnp.cpp
   tests/test_ba.cpp
+  tests/test_pose_graph.cpp
   tests/test_trajectory.cpp
   tests/test_e2e.cpp)
 target_link_libraries(lynx_tests PRIVATE lynx_vision GTest::gtest_main)
@@ -71,7 +73,6 @@ target_compile_definitions(lynx_tests PRIVATE
 include(GoogleTest)
 gtest_discover_tests(lynx_tests DISCOVERY_MODE PRE_TEST)
 
-foreach(exe lynx_vo lynx_tests)
   if(OPENCV_DLL)
     add_custom_command(TARGET ${exe} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OPENCV_DLL} $<TARGET_FILE_DIR:${exe}>)
