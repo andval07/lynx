@@ -5,6 +5,7 @@
 
 #include "lynx/frontend.hpp"
 #include "lynx/geometry.hpp"
+#include "lynx/map.hpp"
 
 namespace lynx {
 
@@ -17,6 +18,10 @@ struct OdometryParams {
   int kf_min_inliers = 120;
   double kf_max_translation = 0.25;  // meters
   double kf_max_rotation_deg = 15.0;
+  // Local bundle adjustment after each new keyframe.
+  bool local_ba = true;
+  int ba_window = 7;  // keyframes
+  BaOptions ba;
 };
 
 struct FrameResult {
@@ -27,8 +32,9 @@ struct FrameResult {
   bool keyframe = false;
 };
 
-// RGB-D visual odometry, frame to keyframe: the keyframe's ORB points are
-// lifted to 3D with depth, and each new frame is located by PnP against them.
+// RGB-D visual odometry, frame to keyframe: each new frame is located by PnP
+// against the map points seen by the last keyframe. With local_ba on, every
+// new keyframe triggers a bundle adjustment of the recent keyframes.
 class RgbdOdometry {
  public:
   explicit RgbdOdometry(const TumCalibration& calib, OdometryParams p = {});
@@ -36,27 +42,28 @@ class RgbdOdometry {
   // gray: 8-bit image, depth: 16-bit TUM depth image.
   FrameResult track(const cv::Mat& gray, const cv::Mat& depth);
 
-  int keyframes() const { return n_keyframes_; }
+  int keyframes() const { return map_.n_keyframes(); }
+
+  // Pose of every tracked frame, recomputed from its reference keyframe so it
+  // includes the corrections bundle adjustment made after the frame was seen.
+  std::vector<SE3> refined_poses() const;
 
  private:
-  struct Keyframe {
-    SE3 T_wc;
-    std::vector<Vec3> points_w;
-    cv::Mat descriptors;
+  struct FrameRef {
+    int kf;
+    SE3 T_kf_c;
   };
 
-  Keyframe make_keyframe(const Features& f, const cv::Mat& depth,
-                         const SE3& T_wc) const;
+  std::vector<double> feature_depths(const Features& f, const cv::Mat& depth) const;
   bool needs_keyframe(const SE3& T_wc, int inliers) const;
 
   TumCalibration calib_;
   OdometryParams params_;
   OrbFrontend frontend_;
+  LocalMap map_;
   std::mt19937 rng_{42};
 
-  bool initialized_ = false;
-  Keyframe kf_;
-  int n_keyframes_ = 0;
+  std::vector<FrameRef> frames_;
   SE3 T_wc_last_;
   SE3 motion_;  // T_prev_last: last frame-to-frame motion, for prediction
 };

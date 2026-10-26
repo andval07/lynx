@@ -5,3 +5,4 @@ third_party/
 results/
 __pycache__/
 SPIEGAZIONE.md
+build.log

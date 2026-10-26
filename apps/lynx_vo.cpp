@@ -6,19 +6,31 @@
 #include <exception>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "lynx/odometry.hpp"
 
 int main(int argc, char** argv) {
-  if (argc < 3) {
-    std::fprintf(stderr, "usage: lynx_vo <tum_sequence_dir> <out.txt> [max_frames]\n");
+  std::vector<std::string> pos;
+  lynx::OdometryParams params;
+  for (int i = 1; i < argc; ++i) {
+    const std::string a = argv[i];
+    if (a == "--no-ba") {
+      params.local_ba = false;
+    } else {
+      pos.push_back(a);
+    }
+  }
+  if (pos.size() < 2) {
+    std::fprintf(stderr,
+                 "usage: lynx_vo <tum_sequence_dir> <out.txt> [max_frames] [--no-ba]\n");
     return 2;
   }
-  const std::string dir = argv[1];
-  const std::string out = argv[2];
-  const int max_frames = argc > 3 ? std::stoi(argv[3]) : 0;
+  const std::string& dir = pos[0];
+  const std::string& out = pos[1];
   try {
-    const lynx::RunStats s = lynx::run_tum_sequence(dir, max_frames);
+    const int max_frames = pos.size() > 2 ? std::stoi(pos[2]) : 0;
+    const lynx::RunStats s = lynx::run_tum_sequence(dir, max_frames, params);
     lynx::write_tum_trajectory(out, s.trajectory);
     for (size_t i = 0; i < s.per_frame.size(); ++i) {
       const auto& r = s.per_frame[i];
