@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <unordered_map>
 
 namespace lynx {
@@ -114,6 +115,33 @@ LocalBaStats LocalMap::local_bundle_adjust(int window, const BaOptions& opt) {
   st.points = static_cast<int>(prob.points.size());
   st.observations = static_cast<int>(prob.obs.size());
   return st;
+}
+
+std::vector<std::array<int, 3>> LocalMap::covisibility(int min_shared) const {
+  std::map<std::pair<int, int>, int> shared;
+  for (const MapPoint& p : points_) {
+    for (size_t a = 0; a < p.obs.size(); ++a) {
+      for (size_t b = a + 1; b < p.obs.size(); ++b) {
+        const int i = std::min(p.obs[a].first, p.obs[b].first);
+        const int j = std::max(p.obs[a].first, p.obs[b].first);
+        if (i != j) ++shared[{i, j}];
+      }
+    }
+  }
+  std::vector<std::array<int, 3>> out;
+  for (const auto& [ij, n] : shared) {
+    if (n >= min_shared) out.push_back({ij.first, ij.second, n});
+  }
+  return out;
+}
+
+void LocalMap::set_keyframe_poses(const std::vector<SE3>& T_wc) {
+  for (MapPoint& p : points_) {
+    if (p.obs.empty()) continue;
+    const int k = p.obs.back().first;
+    p.p_w = T_wc[k] * (kfs_[k].T_wc.inverse() * p.p_w);
+  }
+  for (size_t k = 0; k < kfs_.size(); ++k) kfs_[k].T_wc = T_wc[k];
 }
 
 }  // namespace lynx

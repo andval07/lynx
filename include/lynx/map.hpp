@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <opencv2/core.hpp>
 #include <utility>
 #include <vector>
@@ -51,6 +52,14 @@ class LocalMap {
   int n_keyframes() const { return static_cast<int>(kfs_.size()); }
   const MapKeyframe& keyframe(int i) const { return kfs_[i]; }
   const MapPoint& point(int id) const { return points_[id]; }
+
+  // Keyframe pairs (i < j) that share at least min_shared points, with the
+  // number of shared points.
+  std::vector<std::array<int, 3>> covisibility(int min_shared) const;
+
+  // Moves every keyframe to T_wc[i] after a loop correction. Each point
+  // follows its most recent observer, the keyframe tracking is using now.
+  void set_keyframe_poses(const std::vector<SE3>& T_wc);
 
  private:
   void remove_observation(int point_id, int kf, int feature);
