@@ -47,6 +47,7 @@ add_library(lynx_vision
   src/frontend.cpp
   src/map.cpp
   src/vocabulary.cpp
+  src/loop_closure.cpp
   src/odometry.cpp)
 target_link_libraries(lynx_vision PUBLIC lynx_core ${OpenCV_LIBS})
 target_include_directories(lynx_vision SYSTEM PUBLIC ${OpenCV_INCLUDE_DIRS})

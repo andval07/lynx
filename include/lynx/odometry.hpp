@@ -1,10 +1,13 @@
 #pragma once
 
+#include <optional>
 #include <random>
 #include <string>
+#include <vector>
 
 #include "lynx/frontend.hpp"
 #include "lynx/geometry.hpp"
+#include "lynx/loop_closure.hpp"
 #include "lynx/map.hpp"
 
 namespace lynx {
@@ -22,6 +25,9 @@ struct OdometryParams {
   bool local_ba = true;
   int ba_window = 7;  // keyframes
   BaOptions ba;
+  // Loop closure runs when a vocabulary file is given.
+  std::string vocabulary;
+  LoopParams loop;
 };
 
 struct FrameResult {
@@ -30,6 +36,7 @@ struct FrameResult {
   int inliers = 0;
   bool tracked = false;
   bool keyframe = false;
+  bool loop = false;  // a loop closure corrected the map at this frame
 };
 
 // RGB-D visual odometry, frame to keyframe: each new frame is located by PnP
@@ -43,6 +50,7 @@ class RgbdOdometry {
   FrameResult track(const cv::Mat& gray, const cv::Mat& depth);
 
   int keyframes() const { return map_.n_keyframes(); }
+  std::vector<LoopEdge> loops() const;
 
   // Pose of every tracked frame, recomputed from its reference keyframe so it
   // includes the corrections bundle adjustment made after the frame was seen.
@@ -61,6 +69,7 @@ class RgbdOdometry {
   OdometryParams params_;
   OrbFrontend frontend_;
   LocalMap map_;
+  std::optional<LoopCloser> loop_;
   std::mt19937 rng_{42};
 
   std::vector<FrameRef> frames_;
@@ -74,6 +83,7 @@ struct RunStats {
   int frames = 0;
   int keyframes = 0;
   int lost = 0;
+  std::vector<LoopEdge> loops;
   double ms_per_frame = 0;
 };
 

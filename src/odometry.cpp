@@ -8,7 +8,15 @@
 namespace lynx {
 
 RgbdOdometry::RgbdOdometry(const TumCalibration& calib, OdometryParams p)
-    : calib_(calib), params_(p), frontend_(calib), map_(calib.cam, p.ba.bf) {}
+    : calib_(calib), params_(p), frontend_(calib), map_(calib.cam, p.ba.bf) {
+  if (!p.vocabulary.empty()) {
+    loop_.emplace(Vocabulary::load(p.vocabulary), calib.cam, p.loop);
+  }
+}
+
+std::vector<LoopEdge> RgbdOdometry::loops() const {
+  return loop_ ? loop_->loops() : std::vector<LoopEdge>{};
+}
 
 std::vector<double> RgbdOdometry::feature_depths(const Features& f,
                                                  const cv::Mat& depth) const {
@@ -37,6 +45,7 @@ FrameResult RgbdOdometry::track(const cv::Mat& gray, const cv::Mat& depth) {
   FrameResult r;
   if (map_.n_keyframes() == 0) {
     map_.add_keyframe(SE3(), f, feature_depths(f, depth), {});
+    if (loop_) loop_->process(0, map_);
     frames_.push_back({0, SE3()});
     r.tracked = r.keyframe = true;
     return r;
@@ -77,12 +86,17 @@ FrameResult RgbdOdometry::track(const cv::Mat& gray, const cv::Mat& depth) {
       map_.local_bundle_adjust(params_.ba_window, params_.ba);
       r.T_wc = map_.keyframe(id).T_wc;
     }
+    if (loop_ && loop_->process(id, map_)) {
+      r.T_wc = map_.keyframe(id).T_wc;
+      r.loop = true;
+    }
     frames_.push_back({id, SE3()});
     r.keyframe = true;
   } else {
     frames_.push_back({kf_id, kf.T_wc.inverse() * r.T_wc});
   }
-  motion_ = T_wc_last_.inverse() * r.T_wc;
+  // A loop correction jumps the pose: keep the last motion as prediction.
+  if (!r.loop) motion_ = T_wc_last_.inverse() * r.T_wc;
   T_wc_last_ = r.T_wc;
   return r;
 }
@@ -122,6 +136,7 @@ RunStats run_tum_sequence(const std::string& dir, int max_frames,
   const std::vector<SE3> refined = vo.refined_poses();
   for (size_t i = 0; i < s.trajectory.size(); ++i) s.trajectory[i].T_wc = refined[i];
   s.keyframes = vo.keyframes();
+  s.loops = vo.loops();
   s.ms_per_frame = s.frames > 0 ? total_ms / s.frames : 0;
   return s;
 }
