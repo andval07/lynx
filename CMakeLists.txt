@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+﻿cmake_minimum_required(VERSION 3.20)
 project(lynx CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -35,6 +35,7 @@ add_library(lynx_core
   src/ba.cpp
   src/pose_graph.cpp
   src/trajectory.cpp
+  src/two_view.cpp
   src/tum.cpp)
 target_include_directories(lynx_core PUBLIC include)
 target_link_libraries(lynx_core PUBLIC eigen)
@@ -70,6 +71,7 @@ add_executable(lynx_tests
   tests/test_ba.cpp
   tests/test_pose_graph.cpp
   tests/test_trajectory.cpp
+  tests/test_two_view.cpp
   tests/test_vocabulary.cpp
   tests/test_e2e.cpp)
 target_link_libraries(lynx_tests PRIVATE lynx_vision GTest::gtest_main)
