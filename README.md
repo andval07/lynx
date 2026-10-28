@@ -4,37 +4,40 @@ Visual SLAM for RGB-D cameras, written from scratch in C++17 with Eigen and Open
 It runs on a CPU (about 9 ms per frame on a laptop) and is evaluated on the TUM RGB-D
 benchmark with evo.
 
-I built it to understand each part of a SLAM system by implementing it myself:
-the SE(3) math, PnP, bundle adjustment, bag of words and pose graph optimization.
-OpenCV is used only for image I/O, ORB extraction, brute-force matching and
-undistortion. All the geometry
-and the optimizers are my own code on top of Eigen.
+I wanted to know what is really inside a system like ORB-SLAM, so I wrote each
+part myself: the SE(3) math, PnP, bundle adjustment, bag of words and the pose
+graph. OpenCV only reads the images, extracts and matches ORB features and
+undistorts the keypoints. Everything else is my code on top of Eigen.
 
 ![loop closure on fr3/long_office_household](docs/loop_fr3_long_office.png)
 
-## Pipeline
+## How it works
 
-1. **Tracking.** ORB features (1500 per frame). Depth comes from the TUM depth
-   image. Each frame is matched to the last keyframe and its pose is found with
-   EPnP + RANSAC, then refined with Levenberg-Marquardt on the reprojection error.
-2. **Local map.** New keyframes reuse the map points of the previous keyframe when
-   the descriptors match, so the same 3D point is seen by many keyframes.
-3. **Local bundle adjustment.** The last 7 keyframes and their points are optimized
-   together. Depth enters the residual as a virtual right-image coordinate, like a
-   stereo rig. The point blocks are removed with the Schur complement. Each
-   observation is weighted by the ORB octave (sigma = 1.2^octave), with a Huber
-   kernel.
-4. **Loop detection.** A vocabulary tree (k = 10, L = 4, about 10k words) turns
-   each keyframe into a tf-idf bag of words. An inverted index gives the candidates.
-   A candidate must be at least 30 keyframes old and score at least 0.75 times the
-   score with the previous keyframe. The best 3 candidates are checked with PnP
-   against the candidate's map points (at least 50 inliers).
-5. **Pose graph.** Odometry edges, covisibility edges (at least 100 shared points)
-   and loop edges, optimized on SE(3) with sparse Levenberg-Marquardt. Each map
-   point then moves with the keyframe that observed it last.
+Every frame I extract 1500 ORB features and read their depth from the depth image.
+The frame is matched against the last keyframe, and EPnP + RANSAC gives the pose,
+refined with Levenberg-Marquardt on the reprojection error.
 
-The pose graph uses analytic Jacobians in the tangent space. All modules have unit
-tests with synthetic data (44 tests, GoogleTest).
+When a new keyframe is created, it reuses the map points of the previous one if
+the descriptors match. This way the same 3D point is seen by many keyframes, and
+this alone helped more than I expected.
+
+The last 7 keyframes and their points go into a local bundle adjustment. Depth is
+used as a virtual right-image coordinate, like in a stereo camera. I remove the
+points with the Schur complement, so the system to solve is only the poses. Each
+observation is weighted by its ORB octave (sigma = 1.2^octave) with a Huber
+kernel. Without this weight, BA made the results worse.
+
+For loop detection I trained a vocabulary tree (k = 10, L = 4, about 10k words)
+and use tf-idf bag of words with an inverted index. A candidate has to be at least
+30 keyframes old and score at least 0.75 times the score with the previous
+keyframe. The best 3 are checked with PnP against the candidate's map points, and
+I need at least 50 inliers.
+
+When a loop is accepted, I optimize a pose graph on SE(3) with odometry,
+covisibility (100+ shared points) and loop edges, using sparse LM with analytic
+Jacobians. Then each map point moves with the last keyframe that saw it.
+
+There are 44 GoogleTest tests, mostly on synthetic data.
 
 ## Results
 
@@ -47,15 +50,15 @@ All numbers come from evo with `scripts/evaluate.py`.
 | fr1/xyz | 798 | frame-to-keyframe VO | 3.98 cm | 7.60 cm | 2.25 cm |
 | | | + shared map points | 3.26 cm | 6.95 cm | 2.06 cm |
 | | | + local BA | 3.64 cm | 7.54 cm | 2.09 cm |
-| | | + loop closure | **1.90 cm** | 6.83 cm | 2.05 cm |
+| | | + loop closure | 1.90 cm | 6.83 cm | 2.05 cm |
 | fr1/desk | 596 | frame-to-keyframe VO | 8.27 cm | 20.1 cm | 3.91 cm |
 | | | + shared map points | 5.08 cm | 9.40 cm | 3.30 cm |
 | | | + local BA | 3.81 cm | 10.9 cm | 3.19 cm |
-| | | + loop closure | **2.34 cm** | 6.75 cm | 3.14 cm |
+| | | + loop closure | 2.34 cm | 6.75 cm | 3.14 cm |
 | fr3/long_office_household | 2488 | local BA | 4.48 cm | 10.1 cm | 1.14 cm |
-| | | + loop closure | **2.04 cm** | 7.17 cm | 1.16 cm |
+| | | + loop closure | 2.04 cm | 7.17 cm | 1.16 cm |
 
-With loop closure, no frame was lost on any sequence:
+With loop closure on, no frame was lost:
 
 | Sequence | Keyframes | Loops closed | Time per frame |
 |---|---|---|---|
@@ -71,7 +74,7 @@ from 4.48 cm to 2.04 cm.
 |---|---|
 | ![fr1/xyz](docs/loop_fr1_xyz.png) | ![fr1/desk](docs/loop_fr1_desk.png) |
 
-Things to keep in mind when reading the table:
+Some notes on these numbers:
 
 - The vocabulary was trained on images from fr1/xyz and fr1/desk, so the fr1 loop
   closure numbers are not a clean test. fr3/long_office_household was not used for
