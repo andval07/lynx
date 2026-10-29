@@ -23,7 +23,7 @@ int LocalMap::add_keyframe(const SE3& T_wc, const Features& f,
   kf.u_right.assign(f.uv.size(), -1.0);
   kf.sigma.resize(f.uv.size());
   for (size_t i = 0; i < f.uv.size(); ++i) {
-    if (depth[i] > 0) kf.u_right[i] = f.uv[i].x() - bf_ / depth[i];
+    if (depth[i] > 0 && bf_ > 0) kf.u_right[i] = f.uv[i].x() - bf_ / depth[i];
     kf.sigma[i] = std::pow(kOrbScale, f.keypoints[i].octave);
   }
 
@@ -44,6 +44,12 @@ int LocalMap::add_keyframe(const SE3& T_wc, const Features& f,
   }
   kfs_.push_back(std::move(kf));
   return id;
+}
+
+void LocalMap::add_observation(int point_id, int kf, int feature) {
+  if (kfs_[kf].point[feature] >= 0 || points_[point_id].obs.empty()) return;
+  kfs_[kf].point[feature] = point_id;
+  points_[point_id].obs.emplace_back(kf, feature);
 }
 
 void LocalMap::remove_observation(int point_id, int kf, int feature) {

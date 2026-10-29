@@ -34,6 +34,7 @@ struct LocalBaStats {
 
 // Keyframes and the 3D points they share. Points are created from depth and
 // get more observations when later keyframes match them while tracking.
+// With bf <= 0 (monocular) depth only places new points: every residual is 2D.
 class LocalMap {
  public:
   LocalMap(const Camera& cam, double bf) : cam_(cam), bf_(bf) {}
@@ -43,6 +44,10 @@ class LocalMap {
   int add_keyframe(const SE3& T_wc, const Features& f,
                    const std::vector<double>& depth,
                    const std::vector<std::pair<int, int>>& matched);
+
+  // Adds an observation of a point by an older keyframe, used when a point is
+  // triangulated from two keyframes. Skipped if the feature has a point.
+  void add_observation(int point_id, int kf, int feature);
 
   // Bundle adjustment of the last `window` keyframes and the points they see.
   // Other keyframes that see those points enter as fixed poses; keyframe 0
