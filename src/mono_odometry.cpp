@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <tuple>
+#include <unordered_set>
 
 namespace lynx {
 
@@ -115,15 +117,26 @@ std::vector<double> MonoOdometry::triangulate_with(
 
 int MonoOdometry::add_keyframe(const SE3& T_wc, const Features& f,
                                const std::vector<std::pair<int, int>>& matched) {
-  const int prev = map_.n_keyframes() - 1;
+  const int last = map_.n_keyframes() - 1;
   std::vector<bool> has_point(f.uv.size(), false);
   for (const auto& fp : matched) has_point[fp.first] = true;
-  std::vector<std::pair<int, int>> pairs;
-  const auto depth = triangulate_with(prev, f, T_wc, has_point, pairs);
+  // Triangulate with the recent keyframes, newest first: when keyframes come
+  // close together the older ones give the parallax.
+  std::vector<double> depth(f.uv.size(), -1.0);
+  std::vector<std::tuple<int, int, int>> pairs;  // feature, keyframe, kf feature
+  for (int k = last; k >= 0 && k > last - params_.triangulate_window; --k) {
+    std::vector<std::pair<int, int>> kp;
+    const auto d = triangulate_with(k, f, T_wc, has_point, kp);
+    for (const auto& [q, t] : kp) {
+      depth[q] = d[q];
+      has_point[q] = true;
+      pairs.emplace_back(q, k, t);
+    }
+  }
   const int id = map_.add_keyframe(T_wc, f, depth, matched);
-  for (const auto& [q, t] : pairs) {
+  for (const auto& [q, k, t] : pairs) {
     const int pid = map_.keyframe(id).point[q];
-    if (pid >= 0) map_.add_observation(pid, prev, t);
+    if (pid >= 0) map_.add_observation(pid, k, t);
   }
   if (params_.local_ba) map_.local_bundle_adjust(params_.ba_window, params_.ba);
   return id;
@@ -143,16 +156,24 @@ FrameResult MonoOdometry::track(const Features& f) {
   FrameResult r;
   const int kf_id = map_.n_keyframes() - 1;
   const MapKeyframe& kf = map_.keyframe(kf_id);
+  // Match against the points of the recent keyframes, each feature and each
+  // point used once.
   std::vector<Vec3> pw;
   std::vector<Vec2> uv;
   std::vector<std::pair<int, int>> feature_point;
-  for (const auto& m : OrbFrontend::match(f.descriptors, kf.descriptors,
-                                          params_.ratio)) {
-    const int pid = kf.point[m.trainIdx];
-    if (pid < 0) continue;
-    pw.push_back(map_.point(pid).p_w);
-    uv.push_back(f.uv[m.queryIdx]);
-    feature_point.emplace_back(m.queryIdx, pid);
+  std::vector<bool> used(f.uv.size(), false);
+  std::unordered_set<int> seen;
+  for (int k = kf_id; k >= 0 && k > kf_id - params_.track_window; --k) {
+    const MapKeyframe& ref = map_.keyframe(k);
+    for (const auto& m : OrbFrontend::match(f.descriptors, ref.descriptors,
+                                            params_.ratio)) {
+      const int pid = ref.point[m.trainIdx];
+      if (pid < 0 || used[m.queryIdx] || !seen.insert(pid).second) continue;
+      used[m.queryIdx] = true;
+      pw.push_back(map_.point(pid).p_w);
+      uv.push_back(f.uv[m.queryIdx]);
+      feature_point.emplace_back(m.queryIdx, pid);
+    }
   }
   r.matches = static_cast<int>(pw.size());
 

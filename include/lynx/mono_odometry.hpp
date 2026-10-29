@@ -23,6 +23,8 @@ struct MonoParams {
   // New points from two keyframes.
   double min_parallax_deg = 1.0;
   double max_reproj_px = 4.0;
+  int triangulate_window = 4;  // keyframes tried for new points
+  int track_window = 3;        // keyframes whose points each frame is matched to
   bool local_ba = true;
   int ba_window = 7;
   BaOptions ba;  // bf is ignored: monocular residuals are 2D only
@@ -47,6 +49,8 @@ class MonoOdometry {
   // Pose of every frame from its reference keyframe; frames before the
   // initialization keep the identity and are marked as not tracked.
   std::vector<SE3> refined_poses() const;
+  // False for the frames before the initialization, which have no pose.
+  bool has_pose(size_t frame) const { return frames_[frame].kf >= 0; }
 
  private:
   struct FrameRef {
