@@ -47,6 +47,7 @@ find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs features2d calib3
 add_library(lynx_vision
   src/frontend.cpp
   src/map.cpp
+  src/mono_odometry.cpp
   src/vocabulary.cpp
   src/loop_closure.cpp
   src/odometry.cpp)
@@ -72,6 +73,7 @@ add_executable(lynx_tests
   tests/test_pose_graph.cpp
   tests/test_trajectory.cpp
   tests/test_two_view.cpp
+  tests/test_mono_odometry.cpp
   tests/test_vocabulary.cpp
   tests/test_e2e.cpp)
 target_link_libraries(lynx_tests PRIVATE lynx_vision GTest::gtest_main)
