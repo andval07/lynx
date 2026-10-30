@@ -64,6 +64,9 @@ LocalBaStats LocalMap::local_bundle_adjust(int window, const BaOptions& opt) {
   const int n = n_keyframes();
   if (n < 2) return st;
   const int first = std::max(0, n - window);
+  // Without depth the scale is free: the two oldest keyframes of the window
+  // stay fixed, so that it cannot shrink to zero.
+  const int first_free = bf_ > 0 || n <= 2 ? first : std::min(first + 2, n - 1);
 
   // Problem indices for keyframes and points, filled on first use.
   std::unordered_map<int, int> pose_of_kf, var_of_point;
@@ -73,7 +76,7 @@ LocalBaStats LocalMap::local_bundle_adjust(int window, const BaOptions& opt) {
     auto [it, inserted] = pose_of_kf.try_emplace(kf, static_cast<int>(prob.T_cw.size()));
     if (inserted) {
       prob.T_cw.push_back(kfs_[kf].T_wc.inverse());
-      prob.fixed.push_back(kf < first || kf == 0);
+      prob.fixed.push_back(kf < first_free || kf == 0);
       kf_of_pose.push_back(kf);
     }
     return it->second;
