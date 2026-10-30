@@ -36,7 +36,7 @@ When a loop is accepted, I optimize a pose graph on SE(3) with odometry,
 covisibility (100+ shared points) and loop edges, using sparse LM with analytic
 Jacobians. Then each map point moves with the last keyframe that saw it.
 
-There are 44 GoogleTest tests, mostly on synthetic data.
+There are 50 GoogleTest tests, mostly on synthetic data.
 
 ## Results
 
@@ -162,9 +162,25 @@ tests/          GoogleTest unit and end-to-end tests
 scripts/        evo evaluation and plots
 ```
 
+## Monocular
+
+`lynx_vo <seq> <out.txt> --mono` uses only the RGB images: two-view
+initialization, PnP tracking against the last 3 keyframes, triangulation with
+the last 4 keyframes, local BA with the two oldest keyframes of the window fixed.
+Evaluated with `scripts/evaluate.py --scale` (Sim(3) alignment). ATE RMSE in cm:
+
+| sequence | RGB-D (SE(3)) | mono (Sim(3)) |
+|---|---|---|
+| fr1/xyz | 1.90 | 3.87 |
+| fr1/desk | 2.34 | 12.61 |
+| fr3/long_office_household | 2.04 | 26.15 |
+
+No lost frames on the three sequences. RGB-D numbers include loop closure.
+
 ## Limitations
 
-- RGB-D only: depth comes from the sensor, there is no monocular or stereo mode.
+- Monocular mode (`--mono`) has no loop closure and no scale correction. The
+  scale drifts; on fr1/desk the max error is 91.9 cm. No stereo mode.
 - No global bundle adjustment after loop closure, only the pose graph.
 - No relocalization: if PnP fails, the pose is predicted with the last motion and
   a new keyframe starts from there, so the error of that guess stays in the map.
