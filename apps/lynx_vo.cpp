@@ -5,17 +5,56 @@
 #include <cstdio>
 #include <exception>
 #include <filesystem>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
+#include <opencv2/imgcodecs.hpp>
+
+#include "lynx/mono_odometry.hpp"
 #include "lynx/odometry.hpp"
+#include "lynx/tum.hpp"
+
+namespace {
+
+// Monocular run on the RGB images only. Frames before the initialization have
+// no pose and are not written; the scale is arbitrary, so evaluate with a
+// Sim(3) alignment.
+lynx::Trajectory run_mono(const std::string& dir, int max_frames) {
+  auto frames = lynx::load_tum_sequence(dir);
+  if (max_frames > 0 && static_cast<int>(frames.size()) > max_frames) {
+    frames.resize(max_frames);
+  }
+  lynx::MonoOdometry vo(lynx::tum_calibration(dir));
+  int lost = 0;
+  for (size_t i = 0; i < frames.size(); ++i) {
+    const cv::Mat gray = cv::imread(dir + "/" + frames[i].rgb, cv::IMREAD_GRAYSCALE);
+    if (gray.empty()) throw std::runtime_error("cannot read " + frames[i].rgb);
+    const lynx::FrameResult r = vo.track(gray);
+    if (vo.initialized() && !r.tracked) ++lost;
+  }
+  lynx::Trajectory traj;
+  if (!vo.initialized()) return traj;
+  const auto poses = vo.refined_poses();
+  for (size_t i = 0; i < poses.size(); ++i) {
+    if (vo.has_pose(i)) traj.push_back({frames[i].stamp, poses[i]});
+  }
+  std::printf("frames %zu, posed %zu, keyframes %d, lost %d\n", frames.size(),
+              traj.size(), vo.keyframes(), lost);
+  return traj;
+}
+
+}  // namespace
 
 int main(int argc, char** argv) {
   std::vector<std::string> pos;
   lynx::OdometryParams params;
+  bool mono = false;
   for (int i = 1; i < argc; ++i) {
     const std::string a = argv[i];
-    if (a == "--no-ba") {
+    if (a == "--mono") {
+      mono = true;
+    } else if (a == "--no-ba") {
       params.local_ba = false;
     } else if (a == "--vocab" && i + 1 < argc) {
       params.vocabulary = argv[++i];
@@ -25,13 +64,19 @@ int main(int argc, char** argv) {
   }
   if (pos.size() < 2) {
     std::fprintf(stderr,
-                 "usage: lynx_vo <tum_sequence_dir> <out.txt> [max_frames] [--no-ba] [--vocab file]\n");
+                 "usage: lynx_vo <tum_sequence_dir> <out.txt> [max_frames] [--mono] [--no-ba] [--vocab file]\n");
     return 2;
   }
   const std::string& dir = pos[0];
   const std::string& out = pos[1];
   try {
     const int max_frames = pos.size() > 2 ? std::stoi(pos[2]) : 0;
+    if (mono) {
+      const lynx::Trajectory traj = run_mono(dir, max_frames);
+      if (traj.empty()) throw std::runtime_error("monocular initialization failed");
+      lynx::write_tum_trajectory(out, traj);
+      return 0;
+    }
     const lynx::RunStats s = lynx::run_tum_sequence(dir, max_frames, params);
     lynx::write_tum_trajectory(out, s.trajectory);
     for (size_t i = 0; i < s.per_frame.size(); ++i) {
